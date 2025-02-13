@@ -4,6 +4,40 @@
   "version": "1.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
+  "build": {
+    "appId": "com.n-ziermann.electron-course",
+    "productName": "Electron Course App",
+    "copyright": "Copyright © 2025 Your Company",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis",
+      "publisherName": "Your Company"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Shahbozbek2000",
+        "repo": "electron-course"
+      }
+    ]
+  },
   "scripts": {
     "dev": "npm-run-all --parallel dev:react dev:electron",
     "dev:react": "vite",
@@ -15,7 +49,8 @@
     "dist:win": "npm run transpile:electron && npm run build && electron-builder --win --x64",
     "dist:linux": "npm run transpile:electron && npm run build && electron-builder --linux --x64",
     "test:e2e": "playwright test",
-    "test:unit": "vitest src"
+    "test:unit": "vitest src",
+    "release": "npm run transpile:electron && npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
