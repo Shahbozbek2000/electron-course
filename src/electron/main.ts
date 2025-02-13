@@ -1,6 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import { autoUpdater } from "electron-updater";
+// @ts-nocheck
+import { app, BrowserWindow } from "electron";
+import pkg from "electron-updater";
+const { autoUpdater } = pkg;
+import { ipcMainHandle, ipcMainOn, isDev } from "./util.js";
+import { getStaticData, pollResources } from "./resourceManager.js";
 import { getPreloadPath, getUIPath } from "./pathResolver.js";
+import { createTray } from "./tray.js";
+import { createMenu } from "./menu.js";
 
 app.on("ready", () => {
   const mainWindow = new BrowserWindow({
@@ -10,11 +16,19 @@ app.on("ready", () => {
     frame: false,
   });
 
-  mainWindow.loadFile(getUIPath());
+  if (isDev()) {
+    mainWindow.loadURL("http://localhost:5123");
+  } else {
+    mainWindow.loadFile(getUIPath());
+  }
 
-  checkForUpdates(mainWindow);
+  pollResources(mainWindow);
 
-  ipcMain.on("sendFrameAction", (_, payload) => {
+  ipcMainHandle("getStaticData", () => {
+    return getStaticData();
+  });
+
+  ipcMainOn("sendFrameAction", (payload) => {
     switch (payload) {
       case "CLOSE":
         mainWindow.close();
@@ -28,37 +42,53 @@ app.on("ready", () => {
     }
   });
 
-  ipcMain.on("quitAndInstall", () => {
-    autoUpdater.quitAndInstall();
-  });
+  createTray(mainWindow);
+  handleCloseEvents(mainWindow);
+  createMenu(mainWindow);
+
+  // ✅ Yangilanishlarni tekshirishni boshlash
+  checkForUpdates(mainWindow);
 });
 
-// 📌 Yangilanishlarni tekshirish va boshqarish
+// ✅ Yangilanishlarni tekshirish funksiyasi
 function checkForUpdates(mainWindow: BrowserWindow) {
   autoUpdater.checkForUpdatesAndNotify();
 
+  // ✅ Yangilanish mavjud bo‘lsa, renderer jarayoniga habar yuborish
   autoUpdater.on("update-available", () => {
     mainWindow.webContents.send("update-available");
   });
 
+  // ✅ Yangilanish yuklab bo‘lingandan so‘ng, rendererga xabar yuborish
   autoUpdater.on("update-downloaded", () => {
     mainWindow.webContents.send("update-downloaded");
-    dialog
-      .showMessageBox(mainWindow, {
-        type: "info",
-        title: "Update Ready",
-        message:
-          "Yangi versiya yuklab olindi. Ilovani qayta ishga tushirasizmi?",
-        buttons: ["Qayta ishga tushirish", "Keyinroq"],
-      })
-      .then((result) => {
-        if (result.response === 0) {
-          autoUpdater.quitAndInstall();
-        }
-      });
   });
 
-  autoUpdater.on("error", (err) => {
-    dialog.showErrorBox("Update Error", `Yangilashda xatolik: ${err.message}`);
+  // ✅ Renderer `quitAndInstall` yuborganda, yangilanishni o‘rnatish
+  ipcMainOn("quitAndInstall", () => {
+    autoUpdater.quitAndInstall();
+  });
+}
+
+function handleCloseEvents(mainWindow: BrowserWindow) {
+  let willClose = false;
+
+  mainWindow.on("close", (e) => {
+    if (willClose) {
+      return;
+    }
+    e.preventDefault();
+    mainWindow.hide();
+    if (app.dock) {
+      app.dock.hide();
+    }
+  });
+
+  app.on("before-quit", () => {
+    willClose = true;
+  });
+
+  mainWindow.on("show", () => {
+    willClose = false;
   });
 }
